@@ -1,0 +1,8 @@
+# requirements.txt
+
+# Core dependencies
+pyspark==3.5.0
+PyYAML==6.0.1
+
+# BD Transformer package (install locally)
+# bd_transformer_spark>=1.0.0

@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"] 
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  airflow-init:
+    image: apache/airflow:2.10.5 # seems like airflow 2.x is more stable compared to 3.x where strange errors may occur
+    entrypoint: /bin/bash
+    command: -c "airflow db migrate && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@admin.com --password admin"
+    volumes:
+      - ./airflow:/opt/airflow
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__API_AUTH__JWT_SECRET: this_is_a_secret_key
+      AIRFLOW__CORE__LOAD_EXAMPLES: False # Disable loading example DAGs; User 'admin' will be created via command
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: UTC # Adding this environment variable to avoid ts native vs ts aware issue
+      AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: UTC
+      TZ: UTC
+    depends_on:
+      postgres:
+        condition: service_healthy
+  airflow:
+      build: airflow/
+      depends_on:
+        postgres:
+          condition: service_healthy
+        airflow-init:
+          condition: service_completed_successfully
+      ports:
+        - "8080:8080"
+      volumes:
+        - ./airflow:/opt/airflow
+        - ./dbt:/opt/dbt
+        - ./visualization:/opt/visualization
+        - /var/run/docker.sock:/var/run/docker.sock
+      environment:
+        AIRFLOW__CORE__EXECUTOR: LocalExecutor
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+        AIRFLOW__API_AUTH__JWT_SECRET: this_is_a_secret_key
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_HOST: ${POSTGRES_HOST}
+        POSTGRES_PORT: ${POSTGRES_PORT}
+        AIRFLOW__CORE__DEFAULT_TIMEZONE: UTC
+        AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: UTC
+        TZ: UTC
+      command: webserver
+      restart: always
+  
+  airflow-scheduler:
+    build: airflow/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./airflow:/opt/airflow
+      - ./data:/opt/data
+      - ./dbt:/opt/dbt
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__API_AUTH__JWT_SECRET: this_is_a_secret_key
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: UTC
+      AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: UTC
+      TZ: UTC
+    command: scheduler
+    restart: always
+
+volumes:
+  postgres_data:
