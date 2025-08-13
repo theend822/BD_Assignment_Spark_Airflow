@@ -5,9 +5,9 @@ import os
 
 class PostgresManager:
     """
-    Centralized database connection and operations for BD Transformer pipeline
+    Centralized database connection and operations for Airflow pipelines
     
-    Purpose:
+    Key Features:
     - Avoid repetitive database connection code across multiple Airflow tasks
     - Leverage environment variables for connection configuration
     - Provides consistent error handling and logging for database operations
@@ -29,11 +29,19 @@ class PostgresManager:
             conn.execute(text(sql_query))
             print(log_message)
     
-    def ingest_from_parquet(self, parquet_path, table_name, run_id, if_exists='append'):
+    def ingest_from_parquet(self, parquet_path, table_name, run_id, ds, if_exists='append'):
         """
-        Load Parquet data into PostgreSQL table using shared Spark session
+        Load Parquet data into PostgreSQL table using Spark JDBC (memory-efficient for large data)
+        
+        Args:
+            parquet_path (str): Path to Parquet file
+            table_name (str): Target PostgreSQL table name
+            run_id (str): Unique identifier for this pipeline run
+            ds (str): Date string (YYYY-MM-DD format) for partitioning
+            if_exists (str): What to do if table exists ('append', 'replace', 'fail')
         """
         from dag_utils.spark.SparkManager import SparkManager
+        from pyspark.sql.functions import lit
         
         # Use shared Spark session
         spark_manager = SparkManager()
@@ -41,20 +49,20 @@ class PostgresManager:
         # Read parquet file
         df = spark_manager.read_parquet(parquet_path)
         
-        # Convert to Pandas and add run_id
-        pandas_df = spark_manager.convert_to_pandas(df)
-        pandas_df['run_id'] = run_id
+        # Add customer_id, ds and run_id columns using Spark (no memory conversion needed)
+        from pyspark.sql.functions import monotonically_increasing_id, concat
+        df_with_metadata = df \
+            .withColumn('customer_id', concat(lit(ds), lit('_'), monotonically_increasing_id().cast('string'))) \
+            .withColumn('ds', lit(ds)) \
+            .withColumn('run_id', lit(run_id))
         
-        # Save to PostgreSQL
-        pandas_df.to_sql(
-            table_name,
-            self.engine,
-            if_exists=if_exists,
-            index=False,
-            method='multi'
-        )
+        # Get row count before writing
+        row_count = df_with_metadata.count()
         
-        print(f"Loaded {len(pandas_df)} rows into {table_name}")
+        # Write directly to PostgreSQL using Spark JDBC (memory-efficient)
+        spark_manager.write_to_postgres(df_with_metadata, table_name, mode=if_exists)
+        
+        print(f"Loaded {row_count} rows into {table_name} for ds={ds}")
 
     
     def run_dq_check(self, check_name, sql_query):

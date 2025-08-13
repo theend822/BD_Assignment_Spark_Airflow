@@ -36,11 +36,11 @@ class TransformerFitOperator(BaseOperator):
             config = self.load_config(self.config_path)
             self.log.info(f"Loaded config for columns: {list(config.keys())}")
             
-            # Get run_id from context
-            run_id = context['run_id']
+            # Get ds from context (partition key)
+            ds = context['ds']
             
             # Read data from PostgreSQL instead of parquet (eliminates double read!)
-            df = spark_manager.read_from_postgres('bd_customer_profiles_raw', run_id)
+            df = spark_manager.read_from_postgres('bd_customer_profiles_raw', ds)
             
             # Remove run_id column as it's not needed for transformer
             if 'run_id' in df.columns:

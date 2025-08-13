@@ -2,8 +2,7 @@
 -- Stores raw input data as loaded from parquet files
 
 CREATE TABLE IF NOT EXISTS bd_customer_profiles_raw (
-    id SERIAL PRIMARY KEY,
-    run_id VARCHAR(255) NOT NULL,
+    customer_id VARCHAR(255) PRIMARY KEY,
     
     -- Raw customer profile columns (same as input parquet schema)
     day_of_month INTEGER,
@@ -13,9 +12,7 @@ CREATE TABLE IF NOT EXISTS bd_customer_profiles_raw (
     customer_ratings FLOAT,
     leaderboard_rank INTEGER,
     
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create indices for better performance
-CREATE INDEX IF NOT EXISTS idx_bd_customer_profiles_raw_run_id ON bd_customer_profiles_raw(run_id);
-CREATE INDEX IF NOT EXISTS idx_bd_customer_profiles_raw_created_at ON bd_customer_profiles_raw(created_at);
+    -- Metadata columns
+    run_id VARCHAR(255) NOT NULL,
+    ds VARCHAR(10) NOT NULL
+) PARTITION BY LIST (ds);

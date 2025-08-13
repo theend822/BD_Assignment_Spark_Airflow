@@ -2,8 +2,7 @@
 -- Stores inverse-transformed data (should match original data format)
 
 CREATE TABLE IF NOT EXISTS bd_customer_profiles_inverted (
-    id SERIAL PRIMARY KEY,
-    run_id VARCHAR(255) NOT NULL,
+    customer_id VARCHAR(255) PRIMARY KEY,
     
     -- Inverted customer profile columns (should match original schema after inverse transform)
     day_of_month INTEGER,
@@ -13,9 +12,8 @@ CREATE TABLE IF NOT EXISTS bd_customer_profiles_inverted (
     customer_ratings FLOAT,
     leaderboard_rank INTEGER,
     
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create indices for better performance
-CREATE INDEX IF NOT EXISTS idx_bd_customer_profiles_inverted_run_id ON bd_customer_profiles_inverted(run_id);
-CREATE INDEX IF NOT EXISTS idx_bd_customer_profiles_inverted_created_at ON bd_customer_profiles_inverted(created_at);
+    -- Metadata columns
+    run_id VARCHAR(255) NOT NULL,
+    ds VARCHAR(10) NOT NULL
+    
+) PARTITION BY LIST (ds);

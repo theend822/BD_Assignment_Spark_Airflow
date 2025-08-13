@@ -11,7 +11,7 @@ from operators.TransformOperator import TransformOperator
 # Import utility functions
 from dag_utils.postgres.create_table import create_table
 from dag_utils.postgres.ingest_data import ingest_data_from_parquet
-from dag_utils.postgres.run_dq_check import run_pipeline_dq_checks
+from dag_utils.postgres.run_dq_check import run_dq_check
 from dag_utils.spark.start_spark_session import start_spark_session
 from dag_utils.spark.stop_spark_session import stop_spark_session
 
@@ -107,6 +107,7 @@ with dag:
             'parquet_path': "{{ params.input_path }}",
             'table_name': 'bd_customer_profiles_raw',
             'run_id': "{{ run_id }}",
+            'ds': "{{ ds }}",
             'if_exists': 'append'
         }
     )
@@ -119,6 +120,7 @@ with dag:
             'parquet_path': "{{ params.output_path }}/transformed/",
             'table_name': 'bd_customer_profiles_transformed',
             'run_id': "{{ run_id }}",
+            'ds': "{{ ds }}",
             'if_exists': 'append'
         }
     )
@@ -131,18 +133,22 @@ with dag:
             'parquet_path': "{{ params.output_path }}/recovered/",
             'table_name': 'bd_customer_profiles_inverted',
             'run_id': "{{ run_id }}",
+            'ds': "{{ ds }}",
             'if_exists': 'append'
         }
     )
     
-    # Run data quality checks
-    run_dq_checks = PythonOperator(
-        task_id='run_dq_checks',
-        python_callable=run_pipeline_dq_checks,
-        op_kwargs={
-            'run_id': "{{ run_id }}"
-        }
-    )
+    # Individual DQ checks (config-driven approach)
+    # Example: You can add individual DQ check tasks using loops from config
+    # dq_check_1 = PythonOperator(
+    #     task_id='dq_check_data_exists',
+    #     python_callable=run_dq_check,
+    #     op_kwargs={
+    #         'check_name': 'Raw data exists',
+    #         'sql_file_path': '/opt/airflow/dq_checks/check_data_exists.sql',
+    #         'run_id': "{{ run_id }}"
+    #     }
+    # )
     
     # Stop Spark session to cleanup resources
     stop_spark = PythonOperator(
@@ -163,5 +169,8 @@ with dag:
     transform_data >> save_transformed  
     inverse_transform_data >> save_inverted
     
-    # Final DQ check after all data is saved, then stop Spark
-    [save_raw, save_transformed, save_inverted] >> run_dq_checks >> stop_spark
+    # Stop Spark after all data is saved
+    [save_raw, save_transformed, save_inverted] >> stop_spark
+    
+    # Add your config-driven DQ checks here
+    # [save_raw, save_transformed, save_inverted] >> dq_check_1 >> stop_spark

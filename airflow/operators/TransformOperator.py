@@ -43,12 +43,12 @@ class TransformOperator(BaseOperator):
             transformer = self.load_fitted_transformer()
             self.log.info("Loaded fitted transformer from pickle file")
             
-            # Get run_id from context
-            run_id = context['run_id']
+            # Get ds from context (partition key)
+            ds = context['ds']
             
             if self.operation == 'transform':
                 # Read raw data from PostgreSQL
-                df = spark_manager.read_from_postgres('bd_customer_profiles_raw', run_id)
+                df = spark_manager.read_from_postgres('bd_customer_profiles_raw', ds)
                 
                 # Remove run_id column as it's not needed for transformer
                 if 'run_id' in df.columns:
