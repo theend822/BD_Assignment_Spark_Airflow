@@ -82,10 +82,9 @@ postgres_config={
 
 **Issue**: The BD Transformer package performs multiple full dataset scans during fitting (calculating min/max statistics for each column), causing disk I/O to reach 110%+ capacity and leading to JVM crashes.
 
-**Evidence**:
-![Disk I/O at 110% before crash](https://drive.google.com/file/d/1vQmD5MVtXqbM-lVu789ys6iFCmW938yt/view?usp=drive_link)
+![Disk I/O at 110% before crash](https://drive.google.com/uc?id=1vQmD5MVtXqbM-lVu789ys6iFCmW938yt)
 
-![JVM crash error from I/O overload](https://drive.google.com/file/d/1_WiR4ZcksgROZTiD0aDNB1x1cLJXbmHz/view?usp=drive_link)
+![JVM crash error from I/O overload](https://drive.google.com/uc?id=1_WiR4ZcksgROZTiD0aDNB1x1cLJXbmHz)
 
 **Root Cause**: BD Transformer scans the 8GB dataset 6 times (once per column) for statistics collection, overwhelming Docker's I/O capacity.
 
