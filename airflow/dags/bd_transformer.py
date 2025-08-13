@@ -1,5 +1,9 @@
 # dags/bd_transformer_pipeline.py
 
+import sys
+import os
+sys.path.insert(0, '/opt/airflow')
+
 from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -54,9 +58,9 @@ dag = DAG(
         'spark_config': {
             'driver_memory': '4g',
             'executor_memory': '4g',
-            'max_result_size': '2g'
+            'max_result_size': '2g',
         },
-        'config_file': '/opt/airflow/config/bd_transformer_config.yaml',
+        'config_file': '/opt/airflow/config/bd_customer_profiles.yaml',
         'table_names':{
             'raw': 'bd_customer_profiles_raw',
             'transformed': 'bd_customer_profiles_transformed',
@@ -86,7 +90,14 @@ with dag:
             'parquet_path': "/opt/data/input/",
             'table_name': '{{ params.table_names.raw }}',
             'ds': "{{ ds }}",
-            'if_exists': 'replace',
+            'if_exists': 'overwrite',
+            'postgres_config': {
+                'host': 'postgres',
+                'port': '5432',
+                'database': 'bd_datamart',
+                'user': 'theend822',
+                'password': 'abc123',
+            }
         }
     )
 
@@ -115,7 +126,7 @@ with dag:
         python_callable=start_spark_session,
         op_kwargs={
             'app_name': '{{ params.app_name }}',
-            'spark_config': '{{ params.spark_config }}'
+            'spark_config': '{{ params.spark_config | tojson }}'
         }
     )
     
@@ -125,6 +136,13 @@ with dag:
         config_path="{{ params.config_file }}",
         source_table='{{ params.table_names.raw }}',
         target_table='{{ params.table_names.transformed }}',
+        postgres_config={
+            'host': 'postgres',
+            'port': '5432',
+            'database': 'bd_datamart',
+            'user': 'theend822',
+            'password': 'abc123',
+        }
     )
 
     # DQ Check: Check for null values in transformed table
@@ -133,7 +151,7 @@ with dag:
         python_callable=run_dq_check,
         op_kwargs={
             'check_name': 'No null values in key columns',
-            'sql_query': generate_null_dq_check_sql(col_list=get_columns_from_config("{{ params.config_file }}"), ds="{{ ds }}", source_table="{{ params.table_names.transformed }}")
+            'sql_query': generate_null_dq_check_sql(col_list=get_columns_from_config("/opt/airflow/config/bd_customer_profiles.yaml"), ds="{{ ds }}", source_table="{{ params.table_names.transformed }}")
         }
     )
     # Inverse transform data
@@ -143,6 +161,13 @@ with dag:
         source_table='{{ params.table_names.transformed }}',
         target_table='{{ params.table_names.inverted }}',
         raw_table='{{ params.table_names.raw }}', # required by inverse transform operator
+        postgres_config={
+            'host': 'postgres',
+            'port': '5432',
+            'database': 'bd_datamart',
+            'user': 'theend822',
+            'password': 'abc123',
+        }
     )
 
     # DQ Check: Check for null values in inverted table
@@ -151,7 +176,7 @@ with dag:
         python_callable=run_dq_check,
         op_kwargs={
             'check_name': 'No null values in key columns',
-            'sql_query': generate_null_dq_check_sql(col_list=get_columns_from_config("{{ params.config_file }}", suffix_list=["_data", "_valid", "_error"]), ds="{{ ds }}", source_table="{{ params.table_names.inverted }}")
+            'sql_query': generate_null_dq_check_sql(col_list=get_columns_from_config("/opt/airflow/config/bd_customer_profiles.yaml", suffix_list=["_data", "_valid", "_error"]), ds="{{ ds }}", source_table="{{ params.table_names.inverted }}")
         }
     )
     
@@ -172,7 +197,7 @@ with dag:
         python_callable=stop_spark_session,
         op_kwargs={
             'app_name': '{{ params.app_name }}',
-            'spark_config': '{{ params.spark_config }}'
+            'spark_config': '{{ params.spark_config | tojson }}'
         }
     )
     

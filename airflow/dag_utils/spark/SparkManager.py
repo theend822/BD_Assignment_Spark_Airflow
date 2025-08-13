@@ -15,11 +15,12 @@ class SparkManager:
     - Consistent error handling across all Spark operations
     """
     
-    def __init__(self, app_name: str, spark_config: Optional[dict]):
+    def __init__(self, app_name: str, spark_config: Optional[dict], postgres_config: Optional[dict] = None):
         """Initialize SparkManager for each DAG worker"""
         self._spark_session = None
         self._app_name = app_name
         self._spark_config = spark_config or {}
+        self._postgres_config = postgres_config or {}
     
     def start_spark_session(self):
         """
@@ -53,11 +54,23 @@ class SparkManager:
     
     def get_spark_session(self) -> SparkSession:
         """
-        Get current Spark session (start if not running)
+        Get current Spark session (reuse existing shared session if available)
         
         Returns:
             SparkSession: Active Spark session
         """
+        # First try to get existing shared session
+        try:
+            shared_session_id = os.getenv('SHARED_SPARK_SESSION_ID')
+            if shared_session_id:
+                active_session = SparkSession.getActiveSession()
+                if active_session and active_session.sparkContext.applicationId == shared_session_id:
+                    print(f"Reusing shared Spark session: {shared_session_id}")
+                    return active_session
+        except Exception as e:
+            print(f"Could not reuse shared session: {e}")
+        
+        # Fallback to creating new session
         if self._spark_session is None:
             self.start_spark_session()
         
@@ -106,12 +119,12 @@ class SparkManager:
         else:
             columns_str = columns
         
-        # Get database connection details from environment
-        host = os.getenv('POSTGRES_HOST', 'postgres')
-        port = os.getenv('POSTGRES_PORT', '5432')
-        database = os.getenv('POSTGRES_DB', 'airflow')
-        user = os.getenv('POSTGRES_USER', 'airflow')
-        password = os.getenv('POSTGRES_PASSWORD', 'airflow')
+        # Get database connection details from passed config
+        host = self._postgres_config.get('host')
+        port = self._postgres_config.get('port')
+        database = self._postgres_config.get('database')
+        user = self._postgres_config.get('user')
+        password = self._postgres_config.get('password')
         
         jdbc_url = f"jdbc:postgresql://{host}:{port}/{database}"
         
@@ -164,12 +177,15 @@ class SparkManager:
         """
         spark = self.get_spark_session()
         
-        # Get database connection details from environment
-        host = os.getenv('POSTGRES_HOST', 'postgres')
-        port = os.getenv('POSTGRES_PORT', '5432')
-        database = os.getenv('POSTGRES_DB', 'airflow')
-        user = os.getenv('POSTGRES_USER', 'airflow')
-        password = os.getenv('POSTGRES_PASSWORD', 'airflow')
+        # Get database connection details from passed config
+        host = self._postgres_config.get('host')
+        port = self._postgres_config.get('port')
+        database = self._postgres_config.get('database')
+        user = self._postgres_config.get('user')
+        password = self._postgres_config.get('password')
+        
+        # Debug: Print all connection details
+        print(f"JDBC connection details - host: {host}, port: {port}, database: {database}, user: {user}, password: {'***' if password else None}")
         
         jdbc_url = f"jdbc:postgresql://{host}:{port}/{database}"
         

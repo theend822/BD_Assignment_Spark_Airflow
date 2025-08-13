@@ -14,17 +14,23 @@ class FitTransformOperator(BaseOperator):
         - Saves transformed data to PostgreSQL
     """
     
+    # customized operator doesn't have this by default. Airflow will not resolve {{ params.xxx }} 
+    # but will pass the literal string values
+    template_fields = ('config_path', 'source_table', 'target_table')
+    
     def __init__(
         self,
         config_path: str,
         source_table: str,
         target_table: str,
+        postgres_config: dict = None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.config_path = config_path
         self.source_table = source_table
         self.target_table = target_table
+        self.postgres_config = postgres_config
     
     def load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from local path"""
@@ -40,8 +46,10 @@ class FitTransformOperator(BaseOperator):
             app_name = context['params']['app_name']
             spark_config = context['params']['spark_config']
             
-            # Use shared Spark session
-            spark_manager = SparkManager(app_name, spark_config)
+            # Use shared Spark session with postgres config
+            postgres_config = self.postgres_config or {}
+            self.log.info(f"DEBUG - FitTransformOperator postgres_config: {postgres_config}")
+            spark_manager = SparkManager(app_name, spark_config, postgres_config)
             
             # Load configuration
             config = self.load_config(self.config_path)
@@ -50,8 +58,9 @@ class FitTransformOperator(BaseOperator):
             # Get ds from context (partition key)
             ds = context['ds']
             
-            # Read data from PostgreSQL (table name parameterized)
+            # Read data from PostgreSQL (table name parameterized) and cache to reduce I/O
             df = spark_manager.read_from_postgres(self.source_table, ds)
+            df.cache()  # Cache the DataFrame to reduce repeated I/O operations
             
             # Initialize and fit transformer
             transformer = Transformer(config)

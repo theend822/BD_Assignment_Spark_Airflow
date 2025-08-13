@@ -14,12 +14,17 @@ class InverseTransformOperator(BaseOperator):
         - Saves inverted data to PostgreSQL
     """
     
+    # customized operator doesn't have this by default. Airflow will not resolve {{ params.xxx }} 
+    # but will pass the literal string values
+    template_fields = ('config_path', 'source_table', 'target_table', 'raw_table')
+    
     def __init__(
         self,
         config_path: str,
         source_table: str,
         target_table: str,
         raw_table: str,
+        postgres_config: dict = None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -27,6 +32,7 @@ class InverseTransformOperator(BaseOperator):
         self.source_table = source_table
         self.target_table = target_table
         self.raw_table = raw_table
+        self.postgres_config = postgres_config
 
     
     def load_config(self, config_path: str) -> Dict[str, Any]:
@@ -43,8 +49,9 @@ class InverseTransformOperator(BaseOperator):
             app_name = context['params']['app_name']
             spark_config = context['params']['spark_config']
             
-            # Use shared Spark session
-            spark_manager = SparkManager(app_name, spark_config)
+            # Use shared Spark session with postgres config
+            postgres_config = self.postgres_config or {}
+            spark_manager = SparkManager(app_name, spark_config, postgres_config)
             
             # Load configuration to recreate transformer
             config = self.load_config(self.config_path)

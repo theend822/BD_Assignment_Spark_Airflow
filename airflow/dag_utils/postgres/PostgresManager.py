@@ -29,7 +29,7 @@ class PostgresManager:
             conn.execute(text(sql_query))
             print(log_message)
     
-    def ingest_from_parquet(self, parquet_path, table_name, ds, if_exists='replace'):
+    def ingest_from_parquet(self, parquet_path, table_name, ds, if_exists='overwrite', postgres_config=None):
         """
         Load Parquet data into PostgreSQL table using Spark JDBC (memory-efficient for large data)
         
@@ -37,13 +37,24 @@ class PostgresManager:
             parquet_path (str): Path to Parquet file
             table_name (str): Target PostgreSQL table name
             ds (str): Date string (YYYY-MM-DD format) from Airflow execution context
-            if_exists (str): What to do if table exists ('append', 'replace', 'fail')
+            if_exists (str): What to do if table exists ('overwrite', 'append', 'ignore', 'error', 'errorifexists', 'default')
         """
         from dag_utils.spark.SparkManager import SparkManager
         from pyspark.sql.functions import lit
         
-        # Use shared Spark session with proper config
-        spark_manager = SparkManager("", {})
+        # Use passed postgres_config or fallback to environment variables
+        if postgres_config is None:
+            import os
+            postgres_config = {
+                'host': os.getenv('POSTGRES_HOST'),
+                'port': os.getenv('POSTGRES_PORT'), 
+                'database': os.getenv('POSTGRES_DB'),
+                'user': os.getenv('POSTGRES_USER'),
+                'password': os.getenv('POSTGRES_PASSWORD')
+            }
+        
+        print(f"DEBUG - PostgresManager postgres_config: {postgres_config}")
+        spark_manager = SparkManager("", {}, postgres_config)
         
         # Read parquet file
         df = spark_manager.read_from_parquet(parquet_path)

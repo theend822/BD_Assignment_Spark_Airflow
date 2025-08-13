@@ -2,7 +2,7 @@
 -- Stores normalized/converted data after BD Transformer processing
 
 CREATE TABLE IF NOT EXISTS bd_customer_profiles_transformed (
-    customer_id VARCHAR(255) PRIMARY KEY,
+    customer_id VARCHAR(255) NOT NULL,
     
     -- Transformed customer profile columns (normalized 0-1 values)
     day_of_month FLOAT,
@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS bd_customer_profiles_transformed (
     leaderboard_rank FLOAT,
     
     -- Metadata columns
-    ds VARCHAR(10) NOT NULL
+    ds VARCHAR(10) NOT NULL,
+    
+    -- Composite primary key including partition column
+    PRIMARY KEY (customer_id, ds)
     
 ) PARTITION BY LIST (ds);

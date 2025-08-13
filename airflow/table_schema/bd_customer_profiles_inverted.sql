@@ -2,7 +2,7 @@
 -- Stores inverse-transformed data (should match original data format)
 
 CREATE TABLE IF NOT EXISTS bd_customer_profiles_inverted (
-    customer_id VARCHAR(255) PRIMARY KEY,
+    customer_id VARCHAR(255) NOT NULL,
     
     -- Inverted customer profile columns (should match original schema after inverse transform)
     day_of_month INTEGER,
@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS bd_customer_profiles_inverted (
     leaderboard_rank INTEGER,
     
     -- Metadata columns
-    ds VARCHAR(10) NOT NULL
+    ds VARCHAR(10) NOT NULL,
+    
+    -- Composite primary key including partition column
+    PRIMARY KEY (customer_id, ds)
     
 ) PARTITION BY LIST (ds);

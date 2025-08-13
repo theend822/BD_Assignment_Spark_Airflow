@@ -7,7 +7,7 @@ PyYAML==6.0.1
 # PostgreSQL dependencies
 apache-airflow-providers-postgres==5.10.2
 psycopg2-binary==2.9.9
-sqlalchemy==2.0.23
+sqlalchemy>=1.4,<2.0
 pandas==2.1.4
 
 # PostgreSQL JDBC driver for Spark
