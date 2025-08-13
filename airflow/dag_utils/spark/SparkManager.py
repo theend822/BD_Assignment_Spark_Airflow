@@ -1,8 +1,7 @@
 import os
 from pyspark.sql import SparkSession
 from pyspark.sql import DataFrame
-from typing import Optional
-import atexit
+from typing import Optional, Union, List
 
 
 class SparkManager:
@@ -16,34 +15,31 @@ class SparkManager:
     - Consistent error handling across all Spark operations
     """
     
-    def __init__(self):
+    def __init__(self, app_name: str, spark_config: Optional[dict]):
         """Initialize SparkManager for each DAG worker"""
         self._spark_session = None
-        # Register cleanup on exit
-        atexit.register(self.stop_spark_session)
+        self._app_name = app_name
+        self._spark_config = spark_config or {}
     
-    def start_spark_session(self, app_name: str):
+    def start_spark_session(self):
         """
-        Start Spark session with optimized configuration
-        
-        Args:
-            app_name (str): Name for the Spark application
+        Start Spark session with configurable settings
         """
         if self._spark_session is not None:
             print(f"Spark session already running: {self._spark_session.sparkContext.appName}")
             return
         
         try:
-            print(f"Starting Spark session: {app_name}")
+            print(f"Starting Spark session: {self._app_name}")
             
             self._spark_session = SparkSession.builder \
-                .appName(app_name) \
-                .config("spark.driver.memory", "2g") \
-                .config("spark.executor.memory", "2g") \
-                .config("spark.driver.maxResultSize", "1g") \
-                .config("spark.sql.adaptive.enabled", "true") \
-                .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
-                .config("spark.jars", "/opt/spark/jars/postgresql-42.6.0.jar") \
+                .appName(self._app_name) \
+                .config("spark.driver.memory", self._spark_config.get("driver_memory", "2g")) \
+                .config("spark.executor.memory", self._spark_config.get("executor_memory", "2g")) \
+                .config("spark.driver.maxResultSize", self._spark_config.get("max_result_size", "1g")) \
+                .config("spark.sql.adaptive.enabled", self._spark_config.get("adaptive_query", "true")) \
+                .config("spark.sql.adaptive.coalescePartitions.enabled", self._spark_config.get("coalesce_partitions", "true")) \
+                .config("spark.jars", self._spark_config.get("jars", "/opt/spark/jars/postgresql-42.6.0.jar")) \
                 .getOrCreate()
             
             # Set log level to reduce noise
@@ -55,30 +51,22 @@ class SparkManager:
             print(f"Failed to start Spark session: {str(e)}")
             raise
     
-    def get_spark_session(self, app_name: str = "BD_Transformer_Pipeline") -> SparkSession:
+    def get_spark_session(self) -> SparkSession:
         """
         Get current Spark session (start if not running)
         
-        Args:
-            app_name (str): Name for the Spark application
-            
         Returns:
             SparkSession: Active Spark session
         """
         if self._spark_session is None:
-            self.start_spark_session(app_name)
+            self.start_spark_session()
         
-        # Check if session is still active
-        try:
-            self._spark_session.sparkContext.statusTracker()
-        except Exception:
-            print("Spark session appears to be dead, restarting...")
-            self._spark_session = None
-            self.start_spark_session(app_name)
-        
+        if self._spark_session is None:
+            raise RuntimeError("Failed to create Spark session")
+            
         return self._spark_session
     
-    def read_parquet(self, path: str) -> DataFrame:
+    def read_from_parquet(self, path: str) -> DataFrame:
         """
         Read parquet file using managed Spark session
         
@@ -98,19 +86,25 @@ class SparkManager:
             print(f"Failed to read parquet {path}: {str(e)}")
             raise
     
-    def read_from_postgres(self, table_name: str, ds: str, columns: str = "*") -> DataFrame:
+    def read_from_postgres(self, table_name: str, ds: str, columns: Union[List[str], str] = "*") -> DataFrame:
         """
         Read PostgreSQL table into Spark DataFrame
         
         Args:
             table_name (str): PostgreSQL table name
             ds (str): Date string (YYYY-MM-DD) for partition filtering
-            columns (str): Columns to select (default: all)
+            columns (List[str] or str("*")): Columns to select - either list of column names or default value "*" for all
             
         Returns:
             DataFrame: Spark DataFrame
         """
         spark = self.get_spark_session()
+        
+        # Convert list of columns to comma-separated string if needed
+        if isinstance(columns, list):
+            columns_str = ", ".join(columns)
+        else:
+            columns_str = columns
         
         # Get database connection details from environment
         host = os.getenv('POSTGRES_HOST', 'postgres')
@@ -122,7 +116,7 @@ class SparkManager:
         jdbc_url = f"jdbc:postgresql://{host}:{port}/{database}"
         
         # Build query with ds filter (partition key)
-        query = f"(SELECT {columns} FROM {table_name} WHERE ds = '{ds}') as filtered_data"
+        query = f"(SELECT {columns_str} FROM {table_name} WHERE ds = '{ds}') as filtered_data"
         
         try:
             df = spark.read \
@@ -141,7 +135,7 @@ class SparkManager:
             print(f"Failed to read from PostgreSQL {table_name}: {str(e)}")
             raise
     
-    def write_parquet(self, df: DataFrame, path: str, mode: str = "overwrite"):
+    def write_to_parquet(self, df: DataFrame, path: str, mode: str = "overwrite"):
         """
         Write Spark DataFrame to parquet file
         
@@ -150,6 +144,8 @@ class SparkManager:
             path (str): Output path for parquet file
             mode (str): Write mode ('overwrite', 'append', etc.)
         """
+        spark = self.get_spark_session()
+        
         try:
             df.write.mode(mode).parquet(path)
             print(f"Successfully wrote parquet: {path}")
@@ -166,6 +162,8 @@ class SparkManager:
             table_name (str): PostgreSQL table name
             mode (str): Write mode ('append', 'overwrite', etc.)
         """
+        spark = self.get_spark_session()
+        
         # Get database connection details from environment
         host = os.getenv('POSTGRES_HOST', 'postgres')
         port = os.getenv('POSTGRES_PORT', '5432')

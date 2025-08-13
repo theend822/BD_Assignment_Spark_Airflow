@@ -13,6 +13,5 @@ CREATE TABLE IF NOT EXISTS bd_customer_profiles_raw (
     leaderboard_rank INTEGER,
     
     -- Metadata columns
-    run_id VARCHAR(255) NOT NULL,
     ds VARCHAR(10) NOT NULL
 ) PARTITION BY LIST (ds);

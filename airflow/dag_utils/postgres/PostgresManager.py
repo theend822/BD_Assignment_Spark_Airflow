@@ -29,32 +29,30 @@ class PostgresManager:
             conn.execute(text(sql_query))
             print(log_message)
     
-    def ingest_from_parquet(self, parquet_path, table_name, run_id, ds, if_exists='append'):
+    def ingest_from_parquet(self, parquet_path, table_name, ds, if_exists='replace'):
         """
         Load Parquet data into PostgreSQL table using Spark JDBC (memory-efficient for large data)
         
         Args:
             parquet_path (str): Path to Parquet file
             table_name (str): Target PostgreSQL table name
-            run_id (str): Unique identifier for this pipeline run
-            ds (str): Date string (YYYY-MM-DD format) for partitioning
+            ds (str): Date string (YYYY-MM-DD format) from Airflow execution context
             if_exists (str): What to do if table exists ('append', 'replace', 'fail')
         """
         from dag_utils.spark.SparkManager import SparkManager
         from pyspark.sql.functions import lit
         
-        # Use shared Spark session
-        spark_manager = SparkManager()
+        # Use shared Spark session with proper config
+        spark_manager = SparkManager("", {})
         
         # Read parquet file
-        df = spark_manager.read_parquet(parquet_path)
+        df = spark_manager.read_from_parquet(parquet_path)
         
-        # Add customer_id, ds and run_id columns using Spark (no memory conversion needed)
+        # Add customer_id and ds columns using Spark (no memory conversion needed)
         from pyspark.sql.functions import monotonically_increasing_id, concat
         df_with_metadata = df \
             .withColumn('customer_id', concat(lit(ds), lit('_'), monotonically_increasing_id().cast('string'))) \
-            .withColumn('ds', lit(ds)) \
-            .withColumn('run_id', lit(run_id))
+            .withColumn('ds', lit(ds))
         
         # Get row count before writing
         row_count = df_with_metadata.count()
