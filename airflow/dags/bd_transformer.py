@@ -18,6 +18,9 @@ from dag_utils.spark.stop_spark_session import stop_spark_session
 from dq_checks.check_no_null_values import generate_null_dq_check_sql
 from dq_checks.check_row_count_consistency import generate_row_cnt_consistency_dq_check_sql
 
+# Import column name utility
+from dag_utils.helper.get_column_names import get_columns_from_config
+
 # Default arguments
 default_args = {
     'owner': 'jxy',
@@ -46,17 +49,14 @@ dag = DAG(
     'bd_transformer_pipeline',
     default_args=default_args,
     schedule_interval=None,  # Manual trigger only
-    tags=['data-processing', 'spark'],
     params={
-        'input_path': '/opt/data/input/',
-        'output_path': '/opt/data/output/',
-        'config_path': '/opt/airflow/config/',
         'app_name': 'BD_Transformer_Pipeline',
         'spark_config': {
             'driver_memory': '4g',
             'executor_memory': '4g',
             'max_result_size': '2g'
         },
+        'config_file': '/opt/airflow/config/bd_transformer_config.yaml',
         'table_names':{
             'raw': 'bd_customer_profiles_raw',
             'transformed': 'bd_customer_profiles_transformed',
@@ -83,7 +83,7 @@ with dag:
         task_id='load_raw_data',
         python_callable=ingest_data_from_parquet,
         op_kwargs={
-            'parquet_path': "{{ params.input_path }}",
+            'parquet_path': "/opt/data/input/",
             'table_name': '{{ params.table_names.raw }}',
             'ds': "{{ ds }}",
             'if_exists': 'replace',
@@ -122,7 +122,7 @@ with dag:
     # Fit transformer and transform data
     fit_transform = FitTransformOperator(
         task_id='fit_transform_data',
-        config_path="{{ params.config_path }}/bd_customer_profiles.yaml",
+        config_path="{{ params.config_file }}",
         source_table='{{ params.table_names.raw }}',
         target_table='{{ params.table_names.transformed }}',
     )
@@ -133,13 +133,13 @@ with dag:
         python_callable=run_dq_check,
         op_kwargs={
             'check_name': 'No null values in key columns',
-            'sql_query': {generate_null_dq_check_sql(col_list=[], ds="{{ ds }}", source_table="{{ params.table_names.transformed }}")}
+            'sql_query': generate_null_dq_check_sql(col_list=get_columns_from_config("{{ params.config_file }}"), ds="{{ ds }}", source_table="{{ params.table_names.transformed }}")
         }
     )
     # Inverse transform data
     inverse_transform = InverseTransformOperator(
         task_id='inverse_transform_data',
-        config_path="{{ params.config_path }}/bd_customer_profiles.yaml",
+        config_path="{{ params.config_file }}",
         source_table='{{ params.table_names.transformed }}',
         target_table='{{ params.table_names.inverted }}',
         raw_table='{{ params.table_names.raw }}', # required by inverse transform operator
@@ -151,7 +151,7 @@ with dag:
         python_callable=run_dq_check,
         op_kwargs={
             'check_name': 'No null values in key columns',
-            'sql_query': {generate_null_dq_check_sql(col_list=[], ds="{{ ds }}", source_table="{{ params.table_names.inverted }}")}
+            'sql_query': generate_null_dq_check_sql(col_list=get_columns_from_config("{{ params.config_file }}", suffix_list=["_data", "_valid", "_error"]), ds="{{ ds }}", source_table="{{ params.table_names.inverted }}")
         }
     )
     
@@ -161,7 +161,7 @@ with dag:
         python_callable=run_dq_check,
         op_kwargs={
             'check_name': 'Row counts match across all tables',
-            'sql_query': {generate_row_cnt_consistency_dq_check_sql(table_list="{{ params.table_names.values() | list }}", ds="{{ ds }}")}
+            'sql_query': generate_row_cnt_consistency_dq_check_sql(table_list="{{ params.table_names.values() | list }}", ds="{{ ds }}")
         }
     )
     

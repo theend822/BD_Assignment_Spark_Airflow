@@ -24,7 +24,6 @@ services:
     command: -c "airflow db migrate && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@admin.com --password admin"
     volumes:
       - ./airflow:/opt/airflow
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -47,10 +46,7 @@ services:
         - "8080:8080"
       volumes:
         - ./airflow:/opt/airflow
-        - ./config:/opt/airflow/config
         - /Users/jxy/Downloads/bd_transformer_spark/tests/test_on_large_dataset/data:/opt/data/input # demo only
-        - ./data:/opt/data/output
-        - /var/run/docker.sock:/var/run/docker.sock
       environment:
         AIRFLOW__CORE__EXECUTOR: LocalExecutor
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
@@ -75,10 +71,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./airflow:/opt/airflow
-      - ./config:/opt/airflow/config
       - /Users/jxy/Downloads/bd_transformer_spark/tests/test_on_large_dataset/data:/opt/data/input
-      - ./data:/opt/data/output
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
