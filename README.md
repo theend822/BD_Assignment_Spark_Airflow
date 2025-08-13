@@ -6,25 +6,16 @@ This project converts the [BD Transformer Spark package](https://github.com/thee
 
 The pipeline consists of 10 optimized tasks in an end-to-end data workflow:
 
-**Setup (Parallel):**
 1. **Create Raw Table** - Creates `bd_customer_profiles_raw` table schema
-2. **Create Transformed Table** - Creates `bd_customer_profiles_transformed` table schema  
-3. **Create Inverted Table** - Creates `bd_customer_profiles_inverted` table schema
-
-**Data Ingestion:**
-4. **Load Raw Data** - Loads parquet data into PostgreSQL raw table using Spark
-
-**Spark Processing:**
+2. **Load Raw Data** - Loads parquet data into PostgreSQL raw table using Spark
+3. **Create Transformed Table** - Creates `bd_customer_profiles_transformed` table schema
+4. **Create Inverted Table** - Creates `bd_customer_profiles_inverted` table schema
 5. **Start Spark Session** - Initialize shared Spark session for pipeline
 6. **Fit Transform** - Reads from PostgreSQL, fits BD transformer, saves transformed data
 7. **Inverse Transform** - Reads transformed data, applies inverse transformation
-
-**Data Quality:**
 8. **DQ Check Transformed** - Validates null values in transformed data
 9. **DQ Check Inverted** - Validates null values in inverted data  
 10. **DQ Check Row Counts** - Ensures row count consistency across all tables
-
-**Cleanup:**
 11. **Stop Spark Session** - Cleanup Spark resources
 
 ## Data Flow
