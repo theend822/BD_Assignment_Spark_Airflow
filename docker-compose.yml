@@ -48,7 +48,7 @@ services:
       volumes:
         - ./airflow:/opt/airflow
         - ./config:/opt/airflow/config
-        - /Users/jxy/Downloads/bd_transformer_spark/tests/test_on_large_dataset/data:/opt/data/input
+        - /Users/jxy/Downloads/bd_transformer_spark/tests/test_on_large_dataset/data:/opt/data/input # demo only
         - ./data:/opt/data/output
         - /var/run/docker.sock:/var/run/docker.sock
       environment:

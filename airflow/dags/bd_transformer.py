@@ -26,15 +26,19 @@ default_args = {
     'retries': 1,
 }
 
-    # Define task dependencies according to new sequence:
-    # a. Create postgres tables (parallel)
-    # b. Postgres read from parquet 
-    # c. Spark start
-    # d. Spark read from postgres and fit/transform
-    # e. Spark read from postgres and inverse transform
-    # f. 2 DQ checks (parallel)
-    # g. Stop spark
-
+"""
+PIPELINE STEPS:
+1. Create raw tables in PostgreSQL
+2. Read raw data from Parquet files and Load into PostgreSQL
+3. Create transformed and inverted tables in PostgreSQL
+4. Start Spark session with custom config
+5. Read from raw table, fit and transform and Save data into transformed table
+6. DQ Check: Check for null values in transformed table
+7. Read from transformed table, inverse transform and Save data into inverted table
+8. DQ Check: Check for null values in inverted table
+9. DQ Check: Check row counts match across all tables
+10. Stop Spark session to cleanup resources
+"""
 
 
 # DAG definition
@@ -69,7 +73,7 @@ with dag:
         task_id='create_raw_table',
         python_callable=create_table,
         op_kwargs={
-            'table_schema': '/opt/airflow/table_schema/bd_customer_profiles_raw.sql',
+            'table_schema': '/opt/airflow/table_schema/{{ params.table_names.raw }}.sql',
             'log_message': 'Raw table created successfully'
         }
     )
@@ -118,7 +122,7 @@ with dag:
     # Fit transformer and transform data
     fit_transform = FitTransformOperator(
         task_id='fit_transform_data',
-        config_path="{{ params.config_path }}/bd_transformer_config.yaml",
+        config_path="{{ params.config_path }}/bd_customer_profiles.yaml",
         source_table='{{ params.table_names.raw }}',
         target_table='{{ params.table_names.transformed }}',
     )
@@ -135,7 +139,7 @@ with dag:
     # Inverse transform data
     inverse_transform = InverseTransformOperator(
         task_id='inverse_transform_data',
-        config_path="{{ params.config_path }}/bd_transformer_config.yaml",
+        config_path="{{ params.config_path }}/bd_customer_profiles.yaml",
         source_table='{{ params.table_names.transformed }}',
         target_table='{{ params.table_names.inverted }}',
         raw_table='{{ params.table_names.raw }}', # required by inverse transform operator
