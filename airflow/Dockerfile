@@ -19,6 +19,14 @@ USER airflow
 COPY requirements.txt /opt/airflow/
 RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt
 
+# Install bd_transformer package from GitHub
+RUN pip install --no-cache-dir git+https://github.com/theend822/BD_Assignment_Spark_Package.git
+
+# Download PostgreSQL JDBC driver for Spark
+RUN mkdir -p /opt/spark/jars && \
+    wget -O /opt/spark/jars/postgresql-42.6.0.jar \
+    https://jdbc.postgresql.org/download/postgresql-42.6.0.jar
+
 # Set environment variables for Spark
 ENV SPARK_HOME=/opt/airflow/.local/lib/python3.9/site-packages/pyspark
 ENV PYTHONPATH="${SPARK_HOME}/python:${SPARK_HOME}/python/lib/py4j-0.10.9.7-src.zip:${PYTHONPATH}"

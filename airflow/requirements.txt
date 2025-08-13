@@ -4,5 +4,14 @@
 pyspark==3.5.0
 PyYAML==6.0.1
 
-# BD Transformer package (install locally)
+# PostgreSQL dependencies
+apache-airflow-providers-postgres==5.10.2
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+pandas==2.1.4
+
+# PostgreSQL JDBC driver for Spark
+py4j==0.10.9.7
+
+# BD Transformer package (install from GitHub via Dockerfile)
 # bd_transformer_spark>=1.0.0

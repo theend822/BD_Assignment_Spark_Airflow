@@ -1,11 +1,11 @@
 from typing import Dict, Any
 from airflow.models import BaseOperator
 from airflow.utils.context import Context
-from pyspark.sql import SparkSession
+from dag_utils.spark.SparkManager import SparkManager
 
 
 class DataLoadOperator(BaseOperator):
-    """Operator to load data for processing"""
+    """Operator to load data for processing using shared Spark session"""
     
     def __init__(
         self,
@@ -15,27 +15,16 @@ class DataLoadOperator(BaseOperator):
         super().__init__(**kwargs)
         self.input_path = input_path
         
-    def get_spark_session(self) -> SparkSession:
-        """Create Spark session"""
-        spark = SparkSession.builder \
-            .appName("BD_Transformer_DataLoad") \
-            .config("spark.driver.memory", "2g") \
-            .config("spark.executor.memory", "2g") \
-            .getOrCreate()
-        spark.sparkContext.setLogLevel("WARN")
-        return spark
-        
     def execute(self, context: Context) -> Dict[str, Any]:
         """Load data and prepare for processing"""
         self.log.info(f"Loading data from: {self.input_path}")
         
-        spark = None
         try:
-            # Setup Spark
-            spark = self.get_spark_session()
+            # Use shared Spark session
+            spark_manager = SparkManager()
             
             # Load data
-            df = spark.read.parquet(self.input_path)
+            df = spark_manager.read_parquet(self.input_path)
             
             # Get basic info
             row_count = df.count()
@@ -60,6 +49,3 @@ class DataLoadOperator(BaseOperator):
         except Exception as e:
             self.log.error(f"Error loading data: {str(e)}")
             raise
-        finally:
-            if spark:
-                spark.stop()

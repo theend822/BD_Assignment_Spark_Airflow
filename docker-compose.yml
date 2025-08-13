@@ -47,8 +47,9 @@ services:
         - "8080:8080"
       volumes:
         - ./airflow:/opt/airflow
-        - ./dbt:/opt/dbt
-        - ./visualization:/opt/visualization
+        - ./config:/opt/airflow/config
+        - /Users/jxy/Downloads/bd_transformer_spark/tests/test_on_large_dataset/data:/opt/data/input
+        - ./data:/opt/data/output
         - /var/run/docker.sock:/var/run/docker.sock
       environment:
         AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -74,8 +75,9 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./airflow:/opt/airflow
-      - ./data:/opt/data
-      - ./dbt:/opt/dbt
+      - ./config:/opt/airflow/config
+      - /Users/jxy/Downloads/bd_transformer_spark/tests/test_on_large_dataset/data:/opt/data/input
+      - ./data:/opt/data/output
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
